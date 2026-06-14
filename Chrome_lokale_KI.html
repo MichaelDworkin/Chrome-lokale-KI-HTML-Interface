@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chrome lokale KI</title>
+
+  <!-- Projekt Homaepage  https://chrome-lokale-ki.esp8266-server.de -->
+  <!-- Version 1.3 -->
+
+  <!-- Voreingestellte Prompt-Texte – in presets.js editierbar -->
+  <script src="presets.js"></script>
+
+  <style>
+    /* ── Grundlayout ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 5px;
+      background: #f0f2f5;
+      color: #111111;
+      min-height: 100vh;
+    }
+
+    h1 {
+      color: #16a34a;
+      font-size: 1.8rem;
+      margin-bottom: 4px;
+	  margin-top: 1px;
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #15803d;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #d1d5db;
+      margin: 30px 0;
+    }
+
+    /* ── Karten-Panels ───────────────────────────────────── */
+    .panel {
+      border: 1px solid #d1d5db;
+      padding: 16px;
+      border-radius: 10px;
+      background: #ffffff;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+
+    /* ── Eingabebereich: Textarea + Preset-Spalte ────────── */
+    .eingabe-wrapper {
+      display: flex;
+      gap: 10px;
+      align-items: stretch; /* Kinder auf gleiche Höhe strecken */
+    }
+
+    #meinEingabefeld {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #111111;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 200px;
+      /* Textarea füllt die volle Höhe des Flex-Containers */
+      align-self: stretch;
+      height: auto;
+    }
+
+    #meinEingabefeld::placeholder { color: #9ca3af; }
+    #meinEingabefeld:focus {
+      outline: none;
+      border-color: #16a34a;
+      box-shadow: 0 0 0 2px rgba(22,163,74,0.15);
+    }
+
+    /* ── Preset-Seitenleiste ─────────────────────────────── */
+    .preset-spalte {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 160px;
+      flex-shrink: 0;
+    }
+
+    .preset-spalte-titel {
+      font-size: 11px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+
+    /* Container für die Buttons – immer einspaltig */
+    #presetButtons {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .btn-preset {
+      padding: 7px 10px;
+      font-size: 12px;
+      text-align: left;
+      /* Kein white-space:nowrap – Text darf umbrechen */
+      white-space: normal;
+      word-break: break-word;
+      width: 100%;
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn-preset:hover {
+      background: #dcfce7;
+      border-color: #16a34a;
+    }
+
+    /* ── Haupt-Aktionsbutton ─────────────────────────────── */
+    .btn-haupt {
+      display: block;
+      width: 100%;
+      padding: 11px;
+      margin-top: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffffff;
+      background: #16a34a;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-haupt:hover:not(:disabled) { background: #15803d; }
+    .btn-haupt:active:not(:disabled) { transform: scale(0.99); }
+    .btn-haupt:disabled {
+      background: #d1d5db;
+      color: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    /* ── Statuszeile ─────────────────────────────────────── */
+    .status-zeile {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    #meinStatus {
+      font-style: italic;
+      color: #6b7280;
+      flex: 1;
+    }
+
+    .status-buttons {
+      display: flex;
+      gap: 8px;
+    }
+	
+	.statusWarnung {
+  font-size: 28px;
+  font-weight: bold;
+	}
+	
+
+    /* ── Sekundäre Buttons (Stopp, Session zurücksetzen) ──── */
+    .btn-sekundaer {
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn-sekundaer:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    #btnStopp {
+      background: #ef4444;
+      color: #fff;
+    }
+    #btnStopp:hover:not(:disabled) { background: #dc2626; }
+
+    #btnSessionReset {
+      background: #f59e0b;
+      color: #1a1a2e;
+    }
+    #btnSessionReset:hover:not(:disabled) { background: #d97706; }
+
+    /* ── Ausgabebereich (Markdown-Rendering) ─────────────── */
+    #meinAusgabeContainer {
+      width: 100%;
+      min-height: 300px;
+      max-height: 70vh;
+      overflow-y: auto;
+      padding: 12px 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #fafafa;
+      color: #111111;
+      font-size: 14px;
+      line-height: 1.6;
+      /* Kein white-space:pre-wrap – marked.js erzeugt bereits <p>-Tags */
+      word-break: break-word;
+    }
+
+    /* Absatzabstände kompakt halten */
+    #meinAusgabeContainer p {
+      margin: 0.3em 0;
+    }
+
+    /* Markdown-Stile im Ausgabebereich */
+    #meinAusgabeContainer h1,
+    #meinAusgabeContainer h2,
+    #meinAusgabeContainer h3 { color: #15803d; margin: 0.8em 0 0.3em; }
+    #meinAusgabeContainer code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Consolas', monospace;
+      font-size: 13px;
+      color: #0f172a;
+    }
+    #meinAusgabeContainer pre {
+      background: #f1f5f9;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 0.4em 0;
+    }
+    #meinAusgabeContainer pre code { background: none; padding: 0; }
+    #meinAusgabeContainer blockquote {
+      border-left: 3px solid #16a34a;
+      margin: 0.4em 0;
+      padding-left: 12px;
+      color: #6b7280;
+    }
+    #meinAusgabeContainer a { color: #2563eb; }
+    #meinAusgabeContainer ul, #meinAusgabeContainer ol {
+      padding-left: 1.4em;
+      margin: 0.3em 0;
+    }
+    #meinAusgabeContainer li { margin: 0.1em 0; }
+    #meinAusgabeContainer table { border-collapse: collapse; width: 100%; }
+    #meinAusgabeContainer th, #meinAusgabeContainer td {
+      border: 1px solid #d1d5db;
+      padding: 6px 10px;
+    }
+    #meinAusgabeContainer th { background: #f1f5f9; }
+
+    /* Platzhalter-Text wenn noch keine Ausgabe */
+    .ausgabe-platzhalter { color: #9ca3af; font-style: italic; }
+
+    /* ── Ausgabe-Aktionsbuttons ───────────────────────────── */
+    .ausgabe-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-aktion {
+      padding: 8px 14px;
+      font-size: 13px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      background: #f9fafb;
+      color: #111111;
+    }
+
+    .btn-aktion:hover:not(:disabled) {
+      background: #f0fdf4;
+      border-color: #16a34a;
+      color: #15803d;
+    }
+
+    .btn-aktion:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Flags-Info-Bereich ───────────────────────────────── */
+    .flags-input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 6px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      color: #15803d;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .btn-kopieren {
+      margin-top: 8px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      color: #111111;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-kopieren:hover { background: #f0fdf4; border-color: #16a34a; color: #15803d; }
+
+    /* ── Ladeanimation (Drei Punkte) ─────────────────────── */
+    .ladeanimation-container {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      z-index: 10000;
+      pointer-events: none;
+    }
+
+    .ladeanimation-punkt {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #16a34a;
+      animation: ladeanimation-puls 1.4s ease-in-out infinite;
+    }
+
+    .ladeanimation-punkt:nth-child(1) { animation-delay: 0s; }
+    .ladeanimation-punkt:nth-child(2) { animation-delay: 0.2s; }
+    .ladeanimation-punkt:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes ladeanimation-puls {
+      0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+      30%            { opacity: 1;   transform: scale(1.2); }
+    }
+
+    /* ── Toast-Benachrichtigung ───────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #15803d;
+      color: #ffffff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    #toast.sichtbar { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+
+<body>
+  <h1>⚡ Chrome lokale KI Gemini Nano</h1>
+
+  <!-- ── Eingabebereich ──────────────────────────────────────── -->
+  <div class="panel">
+    <h2>Dein Prompt</h2>
+    <div class="eingabe-wrapper">
+
+      <!-- Haupteingabe-Textarea -->
+      <textarea
+        id="meinEingabefeld"
+        rows="12"
+        placeholder="Gib hier deinen Prompt ein..."
+      ></textarea>
+
+      <!-- Preset-Seitenleiste (wird dynamisch aus presets.js befüllt) -->
+      <div class="preset-spalte">
+        <div class="preset-spalte-titel">Voreinstellungen</div>
+        <div id="presetButtons">
+          <!-- Buttons werden per JavaScript aus PRESETS-Array erzeugt -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Ausführen-Button -->
+    <button id="meinAusfuehrenButton" class="btn-haupt" onclick="meinStreamingPromptAusfuehren()" title="Ausführen (Strg+Enter)">
+      🚀 Session erstellen &amp; Antwort streamen
+    </button>
+  </div>
+
+  <!-- ── Status- und Ausgabebereich ─────────────────────────── -->
+  <div class="panel">
+    <h2>Status &amp; Ausgabe</h2>
+
+    <!-- Statuszeile mit Stopp- und Session-Reset-Button -->
+    <div class="status-zeile">
+      <p id="meinStatus">Bereit. Gib einen Prompt ein und klicke den grüne Button oder "Strg + Enter".</p>
+      <div class="status-buttons">
+        <button id="btnStopp" class="btn-sekundaer" onclick="meinPromptStoppen()" disabled title="Aktuelle Generierung abbrechen">
+          ⛔ Stopp
+        </button>
+        <button id="btnSessionReset" class="btn-sekundaer" onclick="meinSessionZuruecksetzen()" title="KI-Session zurücksetzen (Kontext löschen)">
+          🔄 Session zurücksetzen
+        </button>
+      </div>
+    </div>
+
+    <!-- Ausgabefeld mit Markdown-Rendering -->
+    <div id="meinAusgabeContainer">
+      <span class="ausgabe-platzhalter">Die Antwort erscheint hier…</span>
+    </div>
+
+    <!-- Ausgabe-Aktionsbuttons -->
+    <div class="ausgabe-buttons">
+      <button id="btnKopieren" class="btn-aktion" onclick="ausgabeKopieren()" disabled>
+        📋 In Zwischenablage kopieren
+      </button>
+      <button id="btnAlsText" class="btn-aktion" onclick="ausgabeAlsTextSpeichern()" disabled>
+        💾 Als .txt speichern
+      </button>
+      <button id="btnAlsMarkdown" class="btn-aktion" onclick="ausgabeAlsMarkdownSpeichern()" disabled>
+        📄 Als .md speichern
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast-Benachrichtigung -->
+  <div id="toast"></div>
+
+  <script>
+    // ════════════════════════════════════════════════════════════
+    // Zustandsvariablen
+    // ════════════════════════════════════════════════════════════
+
+    /** Aktive Gemini-Nano-Session (wird wiederverwendet bis zum Reset) */
+    let meineSession = null;
+
+    /** Interval-Handle für den Sekundenzähler in der Statuszeile */
+    let meinTimerInterval = null;
+
+    /** AbortController zum Unterbrechen des aktuellen Prompts */
+    let meinAbortController = null;
+
+    /** Aktuell akkumulierter Rohtext der Ausgabe (für Export) */
+    let meinRohtextAusgabe = "";
+
+    // ════════════════════════════════════════════════════════════
+    // Preset-Buttons aus presets.js dynamisch erzeugen
+    // ════════════════════════════════════════════════════════════
+    function presetButtonsErzeugen() {
+      const container = document.getElementById('presetButtons');
+
+      // Sicherheitsprüfung: PRESETS muss aus presets.js geladen sein
+      if (typeof PRESETS === 'undefined' || !Array.isArray(PRESETS)) {
+        container.innerHTML = '<span style="color:#ef4444;font-size:12px;">presets.js nicht geladen</span>';
+        return;
+      }
+
+      PRESETS.forEach((preset, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn-preset';
+        btn.textContent = preset.label;
+        btn.title = preset.text; // Tooltip zeigt den vollen Präfix-Text
+        btn.onclick = () => presetEinfuegen(index);
+        container.appendChild(btn);
+      });
+    }
+
+    /**
+     * Fügt den Preset-Text VOR dem aktuellen Inhalt des Eingabefelds ein.
+     * @param {number} index – Index im PRESETS-Array
+     */
+    function presetEinfuegen(index) {
+      const eingabe = document.getElementById('meinEingabefeld');
+      const preset = PRESETS[index];
+      if (!preset) return;
+
+      const bisherigterInhalt = eingabe.value;
+      eingabe.value = preset.text + bisherigterInhalt;
+      eingabe.focus();
+
+      // Cursor an den Anfang setzen, damit der Nutzer direkt sieht was eingefügt wurde
+      eingabe.setSelectionRange(0, 0);
+      eingabe.scrollTop = 0;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Timer-Hilfsfunktionen
+    // ════════════════════════════════════════════════════════════
+
+    /** Startet den Sekundenzähler in der Statuszeile */
+    function meinTimerStarten() {
+      let sekunden = 0;
+      const statusElement = document.getElementById('meinStatus');
+      statusElement.textContent = "Arbeite… 0s";
+      meinTimerInterval = setInterval(() => {
+        sekunden++;
+        statusElement.textContent = `Arbeite… ${sekunden}s`;
+      }, 1000);
+    }
+
+    /**
+     * Stoppt den Timer und setzt eine finale Statusmeldung.
+     * @param {string} meldung – Anzuzeigende Nachricht
+     */
+    function meinTimerStoppen(meldung) {
+      if (meinTimerInterval) {
+        clearInterval(meinTimerInterval);
+        meinTimerInterval = null;
+      }
+      document.getElementById('meinStatus').textContent = meldung;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Ausgabe-Hilfsfunktionen
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Rendert Rohtext als Markdown im Ausgabe-Container.
+     * Während des Streamings wird der wachsende Text laufend neu gerendert.
+     * @param {string} rohtext – Akkumulierter Text seit Streaming-Start
+     */
+    function ausgabeAktualisieren(rohtext) {
+      const container = document.getElementById('meinAusgabeContainer');
+      if (!rohtext) {
+        container.innerHTML = '<span class="ausgabe-platzhalter">Die Antwort erscheint hier…</span>';
+        return;
+      }
+      // marked.parse wandelt Markdown-Syntax in HTML um
+      container.innerHTML = marked.parse(rohtext);
+    }
+
+    /** Aktiviert oder deaktiviert die drei Ausgabe-Aktionsbuttons */
+    function ausgabeButtonsAktivieren(aktiv) {
+      document.getElementById('btnKopieren').disabled   = !aktiv;
+      document.getElementById('btnAlsText').disabled    = !aktiv;
+      document.getElementById('btnAlsMarkdown').disabled = !aktiv;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Hauptfunktion: Session erstellen & Prompt streamen
+    // ════════════════════════════════════════════════════════════
+    async function meinStreamingPromptAusfuehren() {
+      const eingabe          = document.getElementById('meinEingabefeld');
+      const ausfuehrenButton = document.getElementById('meinAusfuehrenButton');
+      const stoppButton      = document.getElementById('btnStopp');
+
+      // Button während der Ausführung deaktivieren
+      ausfuehrenButton.disabled = true;
+      stoppButton.disabled      = false;
+
+      // Neuen AbortController für diese Ausführung erstellen
+      meinAbortController = new AbortController();
+
+      try {
+        // Prüfen ob die Chrome LanguageModel API verfügbar ist
+        if (!('LanguageModel' in window)) {
+          meinTimerStoppen(
+            "Fehler: LanguageModel-API nicht verfügbar. " +
+            "Stelle sicher, dass du eine kompatible Chrome-Version mit aktiviertem Flag verwendest."
+          );
+          return;
+        }
+
+        meinTimerStarten();
+        meinRohtextAusgabe = "";
+        ausgabeAktualisieren("");
+        ausgabeButtonsAktivieren(false);
+
+        // Session nur bei Bedarf neu erstellen (wird wiederverwendet)
+        if (!meineSession) {
+          document.getElementById('meinStatus').textContent = 'KI-Session wird erstellt…';
+
+          // Systemprompt: aus presets.js (SYSTEM_PROMPT) oder Standard-Fallback
+          const systemPromptText =
+            (typeof SYSTEM_PROMPT === 'string' && SYSTEM_PROMPT.trim())
+              ? SYSTEM_PROMPT
+              : 'Du bist ein Kollege, der präzise und korrekt antwortet.';
+
+          meineSession = await LanguageModel.create({
+            initialPrompts: [
+              {
+                role: 'system',
+                content: systemPromptText,
+              }
+            ],
+            outputLanguage: 'de', // Ausgabesprache: Deutsch
+          });
+          document.getElementById('meinStatus').textContent = 'Session erstellt. Prompt wird gesendet…';
+        }
+
+        const promptText = eingabe.value;
+        if (!promptText.trim()) {
+          meinTimerStoppen('Bitte gib einen Prompt ein.');
+          return;
+        }
+
+        // Streaming-Prompt mit AbortController-Signal starten
+        const stream = await meineSession.promptStreaming(promptText, {
+          outputLanguage: 'de',               // Ausgabesprache: Deutsch
+          signal: meinAbortController.signal, // Ermöglicht Abbruch via Stopp-Button
+        });
+
+        document.getElementById('meinStatus').textContent = 'Antwort wird gestreamt…';
+
+        // Chunks empfangen und Ausgabe laufend aktualisieren
+        for await (const chunk of stream) {
+          meinRohtextAusgabe += chunk;
+          ausgabeAktualisieren(meinRohtextAusgabe);
+        }
+
+        meinTimerStoppen("✅ Streaming abgeschlossen!");
+        ausgabeButtonsAktivieren(true);
+
+      } catch (fehler) {
+        // AbortError tritt auf wenn der Nutzer auf Stopp geklickt hat
+        if (fehler.name === 'AbortError') {
+          meinTimerStoppen(`⛔ Abgebrochen. (Bisherige Ausgabe bleibt erhalten)`);
+          // Ausgabe-Buttons aktivieren, falls bereits Text vorhanden ist
+          if (meinRohtextAusgabe.trim()) {
+            ausgabeButtonsAktivieren(true);
+          }
+        } else {
+          meinTimerStoppen("❌ Ein Fehler ist aufgetreten. Details in der Browserkonsole.");
+          console.error("Fehler:", fehler);
+        }
+      } finally {
+        // Buttons wieder in Ausgangszustand versetzen
+        ausfuehrenButton.disabled = false;
+        stoppButton.disabled      = true;
+        meinAbortController       = null;
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Stopp-Funktion: Aktiven Prompt über AbortController beenden
+    // ════════════════════════════════════════════════════════════
+    function meinPromptStoppen() {
+      if (meinAbortController) {
+        meinAbortController.abort();
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Session zurücksetzen (löscht den Gesprächskontext)
+    // ════════════════════════════════════════════════════════════
+    function meinSessionZuruecksetzen() {
+      if (meineSession) {
+        // Session-Ressourcen freigeben falls API das unterstützt
+        if (typeof meineSession.destroy === 'function') {
+          meineSession.destroy();
+        }
+        meineSession = null;
+      }
+      meinTimerStoppen("🔄 Session wurde zurückgesetzt. Beim nächsten Prompt wird eine neue Session erstellt.");
+      toastAnzeigen("Session zurückgesetzt");
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Ausgabe-Export-Funktionen
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Kopiert die aktuelle Ausgabe als formatierten Text in die Zwischenablage.
+     * Beim Einfügen in Word bleibt die Formatierung (Überschriften, Fettdruck,
+     * Listen, Code-Blöcke usw.) erhalten, da HTML via ClipboardItem übergeben wird.
+     */
+    async function ausgabeKopieren() {
+      if (!meinRohtextAusgabe) return;
+      try {
+        const container = document.getElementById('meinAusgabeContainer');
+
+        // CSS-Stile inline einbetten, damit Word die Formatierung übernimmt
+        const stile = `
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; color: #111111; line-height: 1.6; }
+            h1, h2, h3 { color: #15803d; margin: 0.8em 0 0.3em; }
+            h1 { font-size: 1.6em; } h2 { font-size: 1.3em; } h3 { font-size: 1.1em; }
+            p { margin: 0.3em 0; }
+            code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: Consolas, monospace; font-size: 13px; color: #0f172a; }
+            pre { background: #f1f5f9; padding: 12px; border-radius: 6px; font-family: Consolas, monospace; font-size: 13px; }
+            blockquote { border-left: 3px solid #16a34a; margin: 0.4em 0; padding-left: 12px; color: #6b7280; }
+            ul, ol { padding-left: 1.4em; margin: 0.3em 0; }
+            li { margin: 0.1em 0; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #d1d5db; padding: 6px 10px; }
+            th { background: #f1f5f9; }
+            a { color: #2563eb; }
+          </style>
+        `;
+        const htmlInhalt = stile + container.innerHTML;
+
+        // Moderne Clipboard API: HTML + Plaintext gleichzeitig
+        if (window.ClipboardItem) {
+          const htmlBlob = new Blob([htmlInhalt], { type: 'text/html' });
+          const textBlob = new Blob([meinRohtextAusgabe], { type: 'text/plain' });
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })
+          ]);
+        } else {
+          // Fallback: nur Plaintext
+          await navigator.clipboard.writeText(meinRohtextAusgabe);
+        }
+        toastAnzeigen("📋 Formatiert in Zwischenablage kopiert!");
+      } catch (fehler) {
+        console.error("Fehler beim Kopieren:", fehler);
+        toastAnzeigen("Fehler beim Kopieren");
+      }
+    }
+
+    /**
+     * Löst einen Datei-Download aus.
+     * Zeilenumbrüche werden auf Windows-Format (CRLF) konvertiert.
+     * @param {string} inhalt    – Dateiinhalt als String
+     * @param {string} dateiname – Vorgeschlagener Dateiname
+     * @param {string} mimeType  – MIME-Typ der Datei
+     */
+    function dateiHerunterladen(inhalt, dateiname, mimeType) {
+      // LF → CRLF konvertieren (Windows-Zeilenenden)
+      // Zuerst vorhandene CRLF normalisieren, dann einheitlich CRLF setzen
+      const inhaltCrlf = inhalt.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n');
+      const blob = new Blob([inhaltCrlf], { type: mimeType });
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href     = url;
+      link.download = dateiname;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    /**
+     * Entfernt Markdown-Syntax aus einem Text und gibt reinen Klartext zurück.
+     * Behandelt: Überschriften, Fettdruck, Kursiv, Code-Blöcke, Listen,
+     * Links, Bilder, Blockquotes, horizontale Linien, Durchgestrichen.
+     * @param {string} md – Markdown-Rohtext
+     * @returns {string} – Bereinigter Klartext
+     */
+    function markdownEntfernen(md) {
+      return md
+        // Code-Blöcke (``` ... ```) – Inhalt behalten, Backticks entfernen
+        .replace(/```[\w]*\n?([\s\S]*?)```/g, '$1')
+        // Inline-Code (`code`) – Backticks entfernen
+        .replace(/`([^`]+)`/g, '$1')
+        // Überschriften (# bis ######)
+        .replace(/^#{1,6}\s+/gm, '')
+        // Fettdruck (**text** oder __text__)
+        .replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1')
+        // Kursiv (*text* oder _text_)
+        .replace(/\*(.+?)\*/g, '$1').replace(/_(.+?)_/g, '$1')
+        // Durchgestrichen (~~text~~)
+        .replace(/~~(.+?)~~/g, '$1')
+        // Links [Text](URL) → Text
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        // Bilder ![Alt](URL) → Alt
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+        // Blockquotes (> Text)
+        .replace(/^>\s?/gm, '')
+        // Horizontale Linien (---, ***, ___)
+        .replace(/^[\-*_]{3,}\s*$/gm, '')
+        // Listen-Marker (-, *, +, 1.)
+        .replace(/^[\s]*[-*+]\s+/gm, '').replace(/^[\s]*\d+\.\s+/gm, '')
+        // Mehrfache Leerzeilen auf eine reduzieren
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
+    /** Speichert die Ausgabe als einfache Textdatei (.txt) ohne Markdown-Syntax */
+    function ausgabeAlsTextSpeichern() {
+      if (!meinRohtextAusgabe) return;
+      const klartext = markdownEntfernen(meinRohtextAusgabe);
+      const zeitstempel = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      dateiHerunterladen(klartext, `ki-ausgabe-${zeitstempel}.txt`, 'text/plain;charset=utf-8');
+      toastAnzeigen("💾 Als .txt gespeichert!");
+    }
+
+    /** Speichert die Ausgabe direkt als Markdown-Datei (.md) */
+    function ausgabeAlsMarkdownSpeichern() {
+      if (!meinRohtextAusgabe) return;
+      const zeitstempel = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      dateiHerunterladen(meinRohtextAusgabe, `ki-ausgabe-${zeitstempel}.md`, 'text/markdown;charset=utf-8');
+      toastAnzeigen("📄 Als .md gespeichert!");
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Toast-Benachrichtigung
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Zeigt kurz eine Toast-Meldung unten rechts an.
+     * @param {string} meldung – Anzuzeigende Nachricht
+     */
+    function toastAnzeigen(meldung) {
+      const toast = document.getElementById('toast');
+      toast.textContent = meldung;
+      toast.classList.add('sichtbar');
+      setTimeout(() => toast.classList.remove('sichtbar'), 2500);
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Flags-Link kopieren und neuen Tab öffnen
+    // ════════════════════════════════════════════════════════════
+    function meinFlagsLinkKopieren() {
+      const eingabe = document.getElementById('flagsLink');
+      eingabe.select();
+      eingabe.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+      window.open('about:blank', '_blank');
+      toastAnzeigen("📋 Link kopiert!");
+    }
+
+async function myCheckAvailability(myApiName) {
+			const statusElement = document.getElementById('meinStatus');
+            try {
+                if (myApiName === 'languageModel') {
+                    const myAvailability = await LanguageModel.availability();
+                    if (myAvailability === 'downloadable' || myAvailability === 'available') {
+                        document.getElementById('meinAusfuehrenButton').disabled = false;
+                    }
+					else {
+					      
+						  statusElement.textContent = "Gemini Nano ist auf Ihrem Rechner nicht freigeschaltet. Bitte Anleitung lesen!";
+						  statusElement.classList.add('statusWarnung');
+						  statusElement.style.color = "red";
+					}
+                } 
+            } catch (myError) {
+                statusElement.textContent = "Gemini Nano ist auf Ihrem Rechner nicht freigeschaltet. Bitte Anleitung lesen!";
+				statusElement.classList.add('statusWarnung');
+				statusElement.style.color = "red";
+				
+            }
+        }
+
+    // ════════════════════════════════════════════════════════════
+    // Initialisierung beim Seitenload
+    // ════════════════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', () => {
+      // Preset-Buttons dynamisch aus presets.js erzeugen
+      presetButtonsErzeugen();
+	 // setTimeout(myCheckAvailability('languageModel'), 500);
+      // Strg+Enter im Eingabefeld löst Ausführen aus
+      document.getElementById('meinEingabefeld').addEventListener('keydown', (event) => {
+        if (event.ctrlKey && event.key === 'Enter') {
+          event.preventDefault();
+          meinStreamingPromptAusfuehren();
+        }
+      });
+    });
+  </script>
+  
+   <!-- Marked.js für Markdown-Rendering im Ausgabebereich -->
+   <script>
+  /**
+ * marked v9.1.6 - a markdown parser
+ * Copyright (c) 2011-2023, Christopher Jeffrey. (MIT Licensed)
+ * https://github.com/markedjs/marked
+ */
+!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).marked={})}(this,(function(e){"use strict";function t(){return{async:!1,breaks:!1,extensions:null,gfm:!0,hooks:null,pedantic:!1,renderer:null,silent:!1,tokenizer:null,walkTokens:null}}function n(t){e.defaults=t}e.defaults={async:!1,breaks:!1,extensions:null,gfm:!0,hooks:null,pedantic:!1,renderer:null,silent:!1,tokenizer:null,walkTokens:null};const s=/[&<>"']/,r=new RegExp(s.source,"g"),i=/[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/,l=new RegExp(i.source,"g"),o={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"},a=e=>o[e];function c(e,t){if(t){if(s.test(e))return e.replace(r,a)}else if(i.test(e))return e.replace(l,a);return e}const h=/&(#(?:\d+)|(?:#x[0-9A-Fa-f]+)|(?:\w+));?/gi;const p=/(^|[^\[])\^/g;function u(e,t){e="string"==typeof e?e:e.source,t=t||"";const n={replace:(t,s)=>(s=(s="object"==typeof s&&"source"in s?s.source:s).replace(p,"$1"),e=e.replace(t,s),n),getRegex:()=>new RegExp(e,t)};return n}function g(e){try{e=encodeURI(e).replace(/%25/g,"%")}catch(e){return null}return e}const k={exec:()=>null};function f(e,t){const n=e.replace(/\|/g,((e,t,n)=>{let s=!1,r=t;for(;--r>=0&&"\\"===n[r];)s=!s;return s?"|":" |"})).split(/ \|/);let s=0;if(n[0].trim()||n.shift(),n.length>0&&!n[n.length-1].trim()&&n.pop(),t)if(n.length>t)n.splice(t);else for(;n.length<t;)n.push("");for(;s<n.length;s++)n[s]=n[s].trim().replace(/\\\|/g,"|");return n}function d(e,t,n){const s=e.length;if(0===s)return"";let r=0;for(;r<s;){const i=e.charAt(s-r-1);if(i!==t||n){if(i===t||!n)break;r++}else r++}return e.slice(0,s-r)}function x(e,t,n,s){const r=t.href,i=t.title?c(t.title):null,l=e[1].replace(/\\([\[\]])/g,"$1");if("!"!==e[0].charAt(0)){s.state.inLink=!0;const e={type:"link",raw:n,href:r,title:i,text:l,tokens:s.inlineTokens(l)};return s.state.inLink=!1,e}return{type:"image",raw:n,href:r,title:i,text:c(l)}}class b{options;rules;lexer;constructor(t){this.options=t||e.defaults}space(e){const t=this.rules.block.newline.exec(e);if(t&&t[0].length>0)return{type:"space",raw:t[0]}}code(e){const t=this.rules.block.code.exec(e);if(t){const e=t[0].replace(/^ {1,4}/gm,"");return{type:"code",raw:t[0],codeBlockStyle:"indented",text:this.options.pedantic?e:d(e,"\n")}}}fences(e){const t=this.rules.block.fences.exec(e);if(t){const e=t[0],n=function(e,t){const n=e.match(/^(\s+)(?:```)/);if(null===n)return t;const s=n[1];return t.split("\n").map((e=>{const t=e.match(/^\s+/);if(null===t)return e;const[n]=t;return n.length>=s.length?e.slice(s.length):e})).join("\n")}(e,t[3]||"");return{type:"code",raw:e,lang:t[2]?t[2].trim().replace(this.rules.inline._escapes,"$1"):t[2],text:n}}}heading(e){const t=this.rules.block.heading.exec(e);if(t){let e=t[2].trim();if(/#$/.test(e)){const t=d(e,"#");this.options.pedantic?e=t.trim():t&&!/ $/.test(t)||(e=t.trim())}return{type:"heading",raw:t[0],depth:t[1].length,text:e,tokens:this.lexer.inline(e)}}}hr(e){const t=this.rules.block.hr.exec(e);if(t)return{type:"hr",raw:t[0]}}blockquote(e){const t=this.rules.block.blockquote.exec(e);if(t){const e=d(t[0].replace(/^ *>[ \t]?/gm,""),"\n"),n=this.lexer.state.top;this.lexer.state.top=!0;const s=this.lexer.blockTokens(e);return this.lexer.state.top=n,{type:"blockquote",raw:t[0],tokens:s,text:e}}}list(e){let t=this.rules.block.list.exec(e);if(t){let n=t[1].trim();const s=n.length>1,r={type:"list",raw:"",ordered:s,start:s?+n.slice(0,-1):"",loose:!1,items:[]};n=s?`\\d{1,9}\\${n.slice(-1)}`:`\\${n}`,this.options.pedantic&&(n=s?n:"[*+-]");const i=new RegExp(`^( {0,3}${n})((?:[\t ][^\\n]*)?(?:\\n|$))`);let l="",o="",a=!1;for(;e;){let n=!1;if(!(t=i.exec(e)))break;if(this.rules.block.hr.test(e))break;l=t[0],e=e.substring(l.length);let s=t[2].split("\n",1)[0].replace(/^\t+/,(e=>" ".repeat(3*e.length))),c=e.split("\n",1)[0],h=0;this.options.pedantic?(h=2,o=s.trimStart()):(h=t[2].search(/[^ ]/),h=h>4?1:h,o=s.slice(h),h+=t[1].length);let p=!1;if(!s&&/^ *$/.test(c)&&(l+=c+"\n",e=e.substring(c.length+1),n=!0),!n){const t=new RegExp(`^ {0,${Math.min(3,h-1)}}(?:[*+-]|\\d{1,9}[.)])((?:[ \t][^\\n]*)?(?:\\n|$))`),n=new RegExp(`^ {0,${Math.min(3,h-1)}}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)`),r=new RegExp(`^ {0,${Math.min(3,h-1)}}(?:\`\`\`|~~~)`),i=new RegExp(`^ {0,${Math.min(3,h-1)}}#`);for(;e;){const a=e.split("\n",1)[0];if(c=a,this.options.pedantic&&(c=c.replace(/^ {1,4}(?=( {4})*[^ ])/g,"  ")),r.test(c))break;if(i.test(c))break;if(t.test(c))break;if(n.test(e))break;if(c.search(/[^ ]/)>=h||!c.trim())o+="\n"+c.slice(h);else{if(p)break;if(s.search(/[^ ]/)>=4)break;if(r.test(s))break;if(i.test(s))break;if(n.test(s))break;o+="\n"+c}p||c.trim()||(p=!0),l+=a+"\n",e=e.substring(a.length+1),s=c.slice(h)}}r.loose||(a?r.loose=!0:/\n *\n *$/.test(l)&&(a=!0));let u,g=null;this.options.gfm&&(g=/^\[[ xX]\] /.exec(o),g&&(u="[ ] "!==g[0],o=o.replace(/^\[[ xX]\] +/,""))),r.items.push({type:"list_item",raw:l,task:!!g,checked:u,loose:!1,text:o,tokens:[]}),r.raw+=l}r.items[r.items.length-1].raw=l.trimEnd(),r.items[r.items.length-1].text=o.trimEnd(),r.raw=r.raw.trimEnd();for(let e=0;e<r.items.length;e++)if(this.lexer.state.top=!1,r.items[e].tokens=this.lexer.blockTokens(r.items[e].text,[]),!r.loose){const t=r.items[e].tokens.filter((e=>"space"===e.type)),n=t.length>0&&t.some((e=>/\n.*\n/.test(e.raw)));r.loose=n}if(r.loose)for(let e=0;e<r.items.length;e++)r.items[e].loose=!0;return r}}html(e){const t=this.rules.block.html.exec(e);if(t){return{type:"html",block:!0,raw:t[0],pre:"pre"===t[1]||"script"===t[1]||"style"===t[1],text:t[0]}}}def(e){const t=this.rules.block.def.exec(e);if(t){const e=t[1].toLowerCase().replace(/\s+/g," "),n=t[2]?t[2].replace(/^<(.*)>$/,"$1").replace(this.rules.inline._escapes,"$1"):"",s=t[3]?t[3].substring(1,t[3].length-1).replace(this.rules.inline._escapes,"$1"):t[3];return{type:"def",tag:e,raw:t[0],href:n,title:s}}}table(e){const t=this.rules.block.table.exec(e);if(t){if(!/[:|]/.test(t[2]))return;const e={type:"table",raw:t[0],header:f(t[1]).map((e=>({text:e,tokens:[]}))),align:t[2].replace(/^\||\| *$/g,"").split("|"),rows:t[3]&&t[3].trim()?t[3].replace(/\n[ \t]*$/,"").split("\n"):[]};if(e.header.length===e.align.length){let t,n,s,r,i=e.align.length;for(t=0;t<i;t++){const n=e.align[t];n&&(/^ *-+: *$/.test(n)?e.align[t]="right":/^ *:-+: *$/.test(n)?e.align[t]="center":/^ *:-+ *$/.test(n)?e.align[t]="left":e.align[t]=null)}for(i=e.rows.length,t=0;t<i;t++)e.rows[t]=f(e.rows[t],e.header.length).map((e=>({text:e,tokens:[]})));for(i=e.header.length,n=0;n<i;n++)e.header[n].tokens=this.lexer.inline(e.header[n].text);for(i=e.rows.length,n=0;n<i;n++)for(r=e.rows[n],s=0;s<r.length;s++)r[s].tokens=this.lexer.inline(r[s].text);return e}}}lheading(e){const t=this.rules.block.lheading.exec(e);if(t)return{type:"heading",raw:t[0],depth:"="===t[2].charAt(0)?1:2,text:t[1],tokens:this.lexer.inline(t[1])}}paragraph(e){const t=this.rules.block.paragraph.exec(e);if(t){const e="\n"===t[1].charAt(t[1].length-1)?t[1].slice(0,-1):t[1];return{type:"paragraph",raw:t[0],text:e,tokens:this.lexer.inline(e)}}}text(e){const t=this.rules.block.text.exec(e);if(t)return{type:"text",raw:t[0],text:t[0],tokens:this.lexer.inline(t[0])}}escape(e){const t=this.rules.inline.escape.exec(e);if(t)return{type:"escape",raw:t[0],text:c(t[1])}}tag(e){const t=this.rules.inline.tag.exec(e);if(t)return!this.lexer.state.inLink&&/^<a /i.test(t[0])?this.lexer.state.inLink=!0:this.lexer.state.inLink&&/^<\/a>/i.test(t[0])&&(this.lexer.state.inLink=!1),!this.lexer.state.inRawBlock&&/^<(pre|code|kbd|script)(\s|>)/i.test(t[0])?this.lexer.state.inRawBlock=!0:this.lexer.state.inRawBlock&&/^<\/(pre|code|kbd|script)(\s|>)/i.test(t[0])&&(this.lexer.state.inRawBlock=!1),{type:"html",raw:t[0],inLink:this.lexer.state.inLink,inRawBlock:this.lexer.state.inRawBlock,block:!1,text:t[0]}}link(e){const t=this.rules.inline.link.exec(e);if(t){const e=t[2].trim();if(!this.options.pedantic&&/^</.test(e)){if(!/>$/.test(e))return;const t=d(e.slice(0,-1),"\\");if((e.length-t.length)%2==0)return}else{const e=function(e,t){if(-1===e.indexOf(t[1]))return-1;let n=0;for(let s=0;s<e.length;s++)if("\\"===e[s])s++;else if(e[s]===t[0])n++;else if(e[s]===t[1]&&(n--,n<0))return s;return-1}(t[2],"()");if(e>-1){const n=(0===t[0].indexOf("!")?5:4)+t[1].length+e;t[2]=t[2].substring(0,e),t[0]=t[0].substring(0,n).trim(),t[3]=""}}let n=t[2],s="";if(this.options.pedantic){const e=/^([^'"]*[^\s])\s+(['"])(.*)\2/.exec(n);e&&(n=e[1],s=e[3])}else s=t[3]?t[3].slice(1,-1):"";return n=n.trim(),/^</.test(n)&&(n=this.options.pedantic&&!/>$/.test(e)?n.slice(1):n.slice(1,-1)),x(t,{href:n?n.replace(this.rules.inline._escapes,"$1"):n,title:s?s.replace(this.rules.inline._escapes,"$1"):s},t[0],this.lexer)}}reflink(e,t){let n;if((n=this.rules.inline.reflink.exec(e))||(n=this.rules.inline.nolink.exec(e))){let e=(n[2]||n[1]).replace(/\s+/g," ");if(e=t[e.toLowerCase()],!e){const e=n[0].charAt(0);return{type:"text",raw:e,text:e}}return x(n,e,n[0],this.lexer)}}emStrong(e,t,n=""){let s=this.rules.inline.emStrong.lDelim.exec(e);if(!s)return;if(s[3]&&n.match(/[\p{L}\p{N}]/u))return;if(!(s[1]||s[2]||"")||!n||this.rules.inline.punctuation.exec(n)){const n=[...s[0]].length-1;let r,i,l=n,o=0;const a="*"===s[0][0]?this.rules.inline.emStrong.rDelimAst:this.rules.inline.emStrong.rDelimUnd;for(a.lastIndex=0,t=t.slice(-1*e.length+n);null!=(s=a.exec(t));){if(r=s[1]||s[2]||s[3]||s[4]||s[5]||s[6],!r)continue;if(i=[...r].length,s[3]||s[4]){l+=i;continue}if((s[5]||s[6])&&n%3&&!((n+i)%3)){o+=i;continue}if(l-=i,l>0)continue;i=Math.min(i,i+l+o);const t=[...s[0]][0].length,a=e.slice(0,n+s.index+t+i);if(Math.min(n,i)%2){const e=a.slice(1,-1);return{type:"em",raw:a,text:e,tokens:this.lexer.inlineTokens(e)}}const c=a.slice(2,-2);return{type:"strong",raw:a,text:c,tokens:this.lexer.inlineTokens(c)}}}}codespan(e){const t=this.rules.inline.code.exec(e);if(t){let e=t[2].replace(/\n/g," ");const n=/[^ ]/.test(e),s=/^ /.test(e)&&/ $/.test(e);return n&&s&&(e=e.substring(1,e.length-1)),e=c(e,!0),{type:"codespan",raw:t[0],text:e}}}br(e){const t=this.rules.inline.br.exec(e);if(t)return{type:"br",raw:t[0]}}del(e){const t=this.rules.inline.del.exec(e);if(t)return{type:"del",raw:t[0],text:t[2],tokens:this.lexer.inlineTokens(t[2])}}autolink(e){const t=this.rules.inline.autolink.exec(e);if(t){let e,n;return"@"===t[2]?(e=c(t[1]),n="mailto:"+e):(e=c(t[1]),n=e),{type:"link",raw:t[0],text:e,href:n,tokens:[{type:"text",raw:e,text:e}]}}}url(e){let t;if(t=this.rules.inline.url.exec(e)){let e,n;if("@"===t[2])e=c(t[0]),n="mailto:"+e;else{let s;do{s=t[0],t[0]=this.rules.inline._backpedal.exec(t[0])[0]}while(s!==t[0]);e=c(t[0]),n="www."===t[1]?"http://"+t[0]:t[0]}return{type:"link",raw:t[0],text:e,href:n,tokens:[{type:"text",raw:e,text:e}]}}}inlineText(e){const t=this.rules.inline.text.exec(e);if(t){let e;return e=this.lexer.state.inRawBlock?t[0]:c(t[0]),{type:"text",raw:t[0],text:e}}}}const m={newline:/^(?: *(?:\n|$))+/,code:/^( {4}[^\n]+(?:\n(?: *(?:\n|$))*)?)+/,fences:/^ {0,3}(`{3,}(?=[^`\n]*(?:\n|$))|~{3,})([^\n]*)(?:\n|$)(?:|([\s\S]*?)(?:\n|$))(?: {0,3}\1[~`]* *(?=\n|$)|$)/,hr:/^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/,heading:/^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/,blockquote:/^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/,list:/^( {0,3}bull)([ \t][^\n]+?)?(?:\n|$)/,html:"^ {0,3}(?:<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)|comment[^\\n]*(\\n+|$)|<\\?[\\s\\S]*?(?:\\?>\\n*|$)|<![A-Z][\\s\\S]*?(?:>\\n*|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>\\n*|$)|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n *)+\\n|$)|<(?!script|pre|style|textarea)([a-z][\\w-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n *)+\\n|$)|</(?!script|pre|style|textarea)[a-z][\\w-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n *)+\\n|$))",def:/^ {0,3}\[(label)\]: *(?:\n *)?([^<\s][^\s]*|<.*?>)(?:(?: +(?:\n *)?| *\n *)(title))? *(?:\n+|$)/,table:k,lheading:/^(?!bull )((?:.|\n(?!\s*?\n|bull ))+?)\n {0,3}(=+|-+) *(?:\n+|$)/,_paragraph:/^([^\n]+(?:\n(?!hr|heading|lheading|blockquote|fences|list|html|table| +\n)[^\n]+)*)/,text:/^[^\n]+/,_label:/(?!\s*\])(?:\\.|[^\[\]\\])+/,_title:/(?:"(?:\\"?|[^"\\])*"|'[^'\n]*(?:\n[^'\n]+)*\n?'|\([^()]*\))/};m.def=u(m.def).replace("label",m._label).replace("title",m._title).getRegex(),m.bullet=/(?:[*+-]|\d{1,9}[.)])/,m.listItemStart=u(/^( *)(bull) */).replace("bull",m.bullet).getRegex(),m.list=u(m.list).replace(/bull/g,m.bullet).replace("hr","\\n+(?=\\1?(?:(?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$))").replace("def","\\n+(?="+m.def.source+")").getRegex(),m._tag="address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul",m._comment=/<!--(?!-?>)[\s\S]*?(?:-->|$)/,m.html=u(m.html,"i").replace("comment",m._comment).replace("tag",m._tag).replace("attribute",/ +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex(),m.lheading=u(m.lheading).replace(/bull/g,m.bullet).getRegex(),m.paragraph=u(m._paragraph).replace("hr",m.hr).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("|lheading","").replace("|table","").replace("blockquote"," {0,3}>").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",m._tag).getRegex(),m.blockquote=u(m.blockquote).replace("paragraph",m.paragraph).getRegex(),m.normal={...m},m.gfm={...m.normal,table:"^ *([^\\n ].*)\\n {0,3}((?:\\| *)?:?-+:? *(?:\\| *:?-+:? *)*(?:\\| *)?)(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)"},m.gfm.table=u(m.gfm.table).replace("hr",m.hr).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("blockquote"," {0,3}>").replace("code"," {4}[^\\n]").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",m._tag).getRegex(),m.gfm.paragraph=u(m._paragraph).replace("hr",m.hr).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("|lheading","").replace("table",m.gfm.table).replace("blockquote"," {0,3}>").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",m._tag).getRegex(),m.pedantic={...m.normal,html:u("^ *(?:comment *(?:\\n|\\s*$)|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)|<tag(?:\"[^\"]*\"|'[^']*'|\\s[^'\"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))").replace("comment",m._comment).replace(/tag/g,"(?!(?:a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)\\b)\\w+(?!:|[^\\w\\s@]*@)\\b").getRegex(),def:/^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,heading:/^(#{1,6})(.*)(?:\n+|$)/,fences:k,lheading:/^(.+?)\n {0,3}(=+|-+) *(?:\n+|$)/,paragraph:u(m.normal._paragraph).replace("hr",m.hr).replace("heading"," *#{1,6} *[^\n]").replace("lheading",m.lheading).replace("blockquote"," {0,3}>").replace("|fences","").replace("|list","").replace("|html","").getRegex()};const w={escape:/^\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])/,autolink:/^<(scheme:[^\s\x00-\x1f<>]*|email)>/,url:k,tag:"^comment|^</[a-zA-Z][\\w:-]*\\s*>|^<[a-zA-Z][\\w-]*(?:attribute)*?\\s*/?>|^<\\?[\\s\\S]*?\\?>|^<![a-zA-Z]+\\s[\\s\\S]*?>|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>",link:/^!?\[(label)\]\(\s*(href)(?:\s+(title))?\s*\)/,reflink:/^!?\[(label)\]\[(ref)\]/,nolink:/^!?\[(ref)\](?:\[\])?/,reflinkSearch:"reflink|nolink(?!\\()",emStrong:{lDelim:/^(?:\*+(?:((?!\*)[punct])|[^\s*]))|^_+(?:((?!_)[punct])|([^\s_]))/,rDelimAst:/^[^_*]*?__[^_*]*?\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\*)[punct](\*+)(?=[\s]|$)|[^punct\s](\*+)(?!\*)(?=[punct\s]|$)|(?!\*)[punct\s](\*+)(?=[^punct\s])|[\s](\*+)(?!\*)(?=[punct])|(?!\*)[punct](\*+)(?!\*)(?=[punct])|[^punct\s](\*+)(?=[^punct\s])/,rDelimUnd:/^[^_*]*?\*\*[^_*]*?_[^_*]*?(?=\*\*)|[^_]+(?=[^_])|(?!_)[punct](_+)(?=[\s]|$)|[^punct\s](_+)(?!_)(?=[punct\s]|$)|(?!_)[punct\s](_+)(?=[^punct\s])|[\s](_+)(?!_)(?=[punct])|(?!_)[punct](_+)(?!_)(?=[punct])/},code:/^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/,br:/^( {2,}|\\)\n(?!\s*$)/,del:k,text:/^(`+|[^`])(?:(?= {2,}\n)|[\s\S]*?(?:(?=[\\<!\[`*_]|\b_|$)|[^ ](?= {2,}\n)))/,punctuation:/^((?![*_])[\spunctuation])/,_punctuation:"\\p{P}$+<=>`^|~"};w.punctuation=u(w.punctuation,"u").replace(/punctuation/g,w._punctuation).getRegex(),w.blockSkip=/\[[^[\]]*?\]\([^\(\)]*?\)|`[^`]*?`|<[^<>]*?>/g,w.anyPunctuation=/\\[punct]/g,w._escapes=/\\([punct])/g,w._comment=u(m._comment).replace("(?:--\x3e|$)","--\x3e").getRegex(),w.emStrong.lDelim=u(w.emStrong.lDelim,"u").replace(/punct/g,w._punctuation).getRegex(),w.emStrong.rDelimAst=u(w.emStrong.rDelimAst,"gu").replace(/punct/g,w._punctuation).getRegex(),w.emStrong.rDelimUnd=u(w.emStrong.rDelimUnd,"gu").replace(/punct/g,w._punctuation).getRegex(),w.anyPunctuation=u(w.anyPunctuation,"gu").replace(/punct/g,w._punctuation).getRegex(),w._escapes=u(w._escapes,"gu").replace(/punct/g,w._punctuation).getRegex(),w._scheme=/[a-zA-Z][a-zA-Z0-9+.-]{1,31}/,w._email=/[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])/,w.autolink=u(w.autolink).replace("scheme",w._scheme).replace("email",w._email).getRegex(),w._attribute=/\s+[a-zA-Z:_][\w.:-]*(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s"'=<>`]+)?/,w.tag=u(w.tag).replace("comment",w._comment).replace("attribute",w._attribute).getRegex(),w._label=/(?:\[(?:\\.|[^\[\]\\])*\]|\\.|`[^`]*`|[^\[\]\\`])*?/,w._href=/<(?:\\.|[^\n<>\\])+>|[^\s\x00-\x1f]*/,w._title=/"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)/,w.link=u(w.link).replace("label",w._label).replace("href",w._href).replace("title",w._title).getRegex(),w.reflink=u(w.reflink).replace("label",w._label).replace("ref",m._label).getRegex(),w.nolink=u(w.nolink).replace("ref",m._label).getRegex(),w.reflinkSearch=u(w.reflinkSearch,"g").replace("reflink",w.reflink).replace("nolink",w.nolink).getRegex(),w.normal={...w},w.pedantic={...w.normal,strong:{start:/^__|\*\*/,middle:/^__(?=\S)([\s\S]*?\S)__(?!_)|^\*\*(?=\S)([\s\S]*?\S)\*\*(?!\*)/,endAst:/\*\*(?!\*)/g,endUnd:/__(?!_)/g},em:{start:/^_|\*/,middle:/^()\*(?=\S)([\s\S]*?\S)\*(?!\*)|^_(?=\S)([\s\S]*?\S)_(?!_)/,endAst:/\*(?!\*)/g,endUnd:/_(?!_)/g},link:u(/^!?\[(label)\]\((.*?)\)/).replace("label",w._label).getRegex(),reflink:u(/^!?\[(label)\]\s*\[([^\]]*)\]/).replace("label",w._label).getRegex()},w.gfm={...w.normal,escape:u(w.escape).replace("])","~|])").getRegex(),_extended_email:/[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![-_])/,url:/^((?:ftp|https?):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/,_backpedal:/(?:[^?!.,:;*_'"~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+/,del:/^(~~?)(?=[^\s~])([\s\S]*?[^\s~])\1(?=[^~]|$)/,text:/^([`~]+|[^`~])(?:(?= {2,}\n)|(?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)|[\s\S]*?(?:(?=[\\<!\[`*~_]|\b_|https?:\/\/|ftp:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)))/},w.gfm.url=u(w.gfm.url,"i").replace("email",w.gfm._extended_email).getRegex(),w.breaks={...w.gfm,br:u(w.br).replace("{2,}","*").getRegex(),text:u(w.gfm.text).replace("\\b_","\\b_| {2,}\\n").replace(/\{2,\}/g,"*").getRegex()};class _{tokens;options;state;tokenizer;inlineQueue;constructor(t){this.tokens=[],this.tokens.links=Object.create(null),this.options=t||e.defaults,this.options.tokenizer=this.options.tokenizer||new b,this.tokenizer=this.options.tokenizer,this.tokenizer.options=this.options,this.tokenizer.lexer=this,this.inlineQueue=[],this.state={inLink:!1,inRawBlock:!1,top:!0};const n={block:m.normal,inline:w.normal};this.options.pedantic?(n.block=m.pedantic,n.inline=w.pedantic):this.options.gfm&&(n.block=m.gfm,this.options.breaks?n.inline=w.breaks:n.inline=w.gfm),this.tokenizer.rules=n}static get rules(){return{block:m,inline:w}}static lex(e,t){return new _(t).lex(e)}static lexInline(e,t){return new _(t).inlineTokens(e)}lex(e){let t;for(e=e.replace(/\r\n|\r/g,"\n"),this.blockTokens(e,this.tokens);t=this.inlineQueue.shift();)this.inlineTokens(t.src,t.tokens);return this.tokens}blockTokens(e,t=[]){let n,s,r,i;for(e=this.options.pedantic?e.replace(/\t/g,"    ").replace(/^ +$/gm,""):e.replace(/^( *)(\t+)/gm,((e,t,n)=>t+"    ".repeat(n.length)));e;)if(!(this.options.extensions&&this.options.extensions.block&&this.options.extensions.block.some((s=>!!(n=s.call({lexer:this},e,t))&&(e=e.substring(n.raw.length),t.push(n),!0)))))if(n=this.tokenizer.space(e))e=e.substring(n.raw.length),1===n.raw.length&&t.length>0?t[t.length-1].raw+="\n":t.push(n);else if(n=this.tokenizer.code(e))e=e.substring(n.raw.length),s=t[t.length-1],!s||"paragraph"!==s.type&&"text"!==s.type?t.push(n):(s.raw+="\n"+n.raw,s.text+="\n"+n.text,this.inlineQueue[this.inlineQueue.length-1].src=s.text);else if(n=this.tokenizer.fences(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.heading(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.hr(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.blockquote(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.list(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.html(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.def(e))e=e.substring(n.raw.length),s=t[t.length-1],!s||"paragraph"!==s.type&&"text"!==s.type?this.tokens.links[n.tag]||(this.tokens.links[n.tag]={href:n.href,title:n.title}):(s.raw+="\n"+n.raw,s.text+="\n"+n.raw,this.inlineQueue[this.inlineQueue.length-1].src=s.text);else if(n=this.tokenizer.table(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.lheading(e))e=e.substring(n.raw.length),t.push(n);else{if(r=e,this.options.extensions&&this.options.extensions.startBlock){let t=1/0;const n=e.slice(1);let s;this.options.extensions.startBlock.forEach((e=>{s=e.call({lexer:this},n),"number"==typeof s&&s>=0&&(t=Math.min(t,s))})),t<1/0&&t>=0&&(r=e.substring(0,t+1))}if(this.state.top&&(n=this.tokenizer.paragraph(r)))s=t[t.length-1],i&&"paragraph"===s.type?(s.raw+="\n"+n.raw,s.text+="\n"+n.text,this.inlineQueue.pop(),this.inlineQueue[this.inlineQueue.length-1].src=s.text):t.push(n),i=r.length!==e.length,e=e.substring(n.raw.length);else if(n=this.tokenizer.text(e))e=e.substring(n.raw.length),s=t[t.length-1],s&&"text"===s.type?(s.raw+="\n"+n.raw,s.text+="\n"+n.text,this.inlineQueue.pop(),this.inlineQueue[this.inlineQueue.length-1].src=s.text):t.push(n);else if(e){const t="Infinite loop on byte: "+e.charCodeAt(0);if(this.options.silent){console.error(t);break}throw new Error(t)}}return this.state.top=!0,t}inline(e,t=[]){return this.inlineQueue.push({src:e,tokens:t}),t}inlineTokens(e,t=[]){let n,s,r,i,l,o,a=e;if(this.tokens.links){const e=Object.keys(this.tokens.links);if(e.length>0)for(;null!=(i=this.tokenizer.rules.inline.reflinkSearch.exec(a));)e.includes(i[0].slice(i[0].lastIndexOf("[")+1,-1))&&(a=a.slice(0,i.index)+"["+"a".repeat(i[0].length-2)+"]"+a.slice(this.tokenizer.rules.inline.reflinkSearch.lastIndex))}for(;null!=(i=this.tokenizer.rules.inline.blockSkip.exec(a));)a=a.slice(0,i.index)+"["+"a".repeat(i[0].length-2)+"]"+a.slice(this.tokenizer.rules.inline.blockSkip.lastIndex);for(;null!=(i=this.tokenizer.rules.inline.anyPunctuation.exec(a));)a=a.slice(0,i.index)+"++"+a.slice(this.tokenizer.rules.inline.anyPunctuation.lastIndex);for(;e;)if(l||(o=""),l=!1,!(this.options.extensions&&this.options.extensions.inline&&this.options.extensions.inline.some((s=>!!(n=s.call({lexer:this},e,t))&&(e=e.substring(n.raw.length),t.push(n),!0)))))if(n=this.tokenizer.escape(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.tag(e))e=e.substring(n.raw.length),s=t[t.length-1],s&&"text"===n.type&&"text"===s.type?(s.raw+=n.raw,s.text+=n.text):t.push(n);else if(n=this.tokenizer.link(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.reflink(e,this.tokens.links))e=e.substring(n.raw.length),s=t[t.length-1],s&&"text"===n.type&&"text"===s.type?(s.raw+=n.raw,s.text+=n.text):t.push(n);else if(n=this.tokenizer.emStrong(e,a,o))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.codespan(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.br(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.del(e))e=e.substring(n.raw.length),t.push(n);else if(n=this.tokenizer.autolink(e))e=e.substring(n.raw.length),t.push(n);else if(this.state.inLink||!(n=this.tokenizer.url(e))){if(r=e,this.options.extensions&&this.options.extensions.startInline){let t=1/0;const n=e.slice(1);let s;this.options.extensions.startInline.forEach((e=>{s=e.call({lexer:this},n),"number"==typeof s&&s>=0&&(t=Math.min(t,s))})),t<1/0&&t>=0&&(r=e.substring(0,t+1))}if(n=this.tokenizer.inlineText(r))e=e.substring(n.raw.length),"_"!==n.raw.slice(-1)&&(o=n.raw.slice(-1)),l=!0,s=t[t.length-1],s&&"text"===s.type?(s.raw+=n.raw,s.text+=n.text):t.push(n);else if(e){const t="Infinite loop on byte: "+e.charCodeAt(0);if(this.options.silent){console.error(t);break}throw new Error(t)}}else e=e.substring(n.raw.length),t.push(n);return t}}class y{options;constructor(t){this.options=t||e.defaults}code(e,t,n){const s=(t||"").match(/^\S*/)?.[0];return e=e.replace(/\n$/,"")+"\n",s?'<pre><code class="language-'+c(s)+'">'+(n?e:c(e,!0))+"</code></pre>\n":"<pre><code>"+(n?e:c(e,!0))+"</code></pre>\n"}blockquote(e){return`<blockquote>\n${e}</blockquote>\n`}html(e,t){return e}heading(e,t,n){return`<h${t}>${e}</h${t}>\n`}hr(){return"<hr>\n"}list(e,t,n){const s=t?"ol":"ul";return"<"+s+(t&&1!==n?' start="'+n+'"':"")+">\n"+e+"</"+s+">\n"}listitem(e,t,n){return`<li>${e}</li>\n`}checkbox(e){return"<input "+(e?'checked="" ':"")+'disabled="" type="checkbox">'}paragraph(e){return`<p>${e}</p>\n`}table(e,t){return t&&(t=`<tbody>${t}</tbody>`),"<table>\n<thead>\n"+e+"</thead>\n"+t+"</table>\n"}tablerow(e){return`<tr>\n${e}</tr>\n`}tablecell(e,t){const n=t.header?"th":"td";return(t.align?`<${n} align="${t.align}">`:`<${n}>`)+e+`</${n}>\n`}strong(e){return`<strong>${e}</strong>`}em(e){return`<em>${e}</em>`}codespan(e){return`<code>${e}</code>`}br(){return"<br>"}del(e){return`<del>${e}</del>`}link(e,t,n){const s=g(e);if(null===s)return n;let r='<a href="'+(e=s)+'"';return t&&(r+=' title="'+t+'"'),r+=">"+n+"</a>",r}image(e,t,n){const s=g(e);if(null===s)return n;let r=`<img src="${e=s}" alt="${n}"`;return t&&(r+=` title="${t}"`),r+=">",r}text(e){return e}}class ${strong(e){return e}em(e){return e}codespan(e){return e}del(e){return e}html(e){return e}text(e){return e}link(e,t,n){return""+n}image(e,t,n){return""+n}br(){return""}}class z{options;renderer;textRenderer;constructor(t){this.options=t||e.defaults,this.options.renderer=this.options.renderer||new y,this.renderer=this.options.renderer,this.renderer.options=this.options,this.textRenderer=new $}static parse(e,t){return new z(t).parse(e)}static parseInline(e,t){return new z(t).parseInline(e)}parse(e,t=!0){let n="";for(let s=0;s<e.length;s++){const r=e[s];if(this.options.extensions&&this.options.extensions.renderers&&this.options.extensions.renderers[r.type]){const e=r,t=this.options.extensions.renderers[e.type].call({parser:this},e);if(!1!==t||!["space","hr","heading","code","table","blockquote","list","html","paragraph","text"].includes(e.type)){n+=t||"";continue}}switch(r.type){case"space":continue;case"hr":n+=this.renderer.hr();continue;case"heading":{const e=r;n+=this.renderer.heading(this.parseInline(e.tokens),e.depth,this.parseInline(e.tokens,this.textRenderer).replace(h,((e,t)=>"colon"===(t=t.toLowerCase())?":":"#"===t.charAt(0)?"x"===t.charAt(1)?String.fromCharCode(parseInt(t.substring(2),16)):String.fromCharCode(+t.substring(1)):"")));continue}case"code":{const e=r;n+=this.renderer.code(e.text,e.lang,!!e.escaped);continue}case"table":{const e=r;let t="",s="";for(let t=0;t<e.header.length;t++)s+=this.renderer.tablecell(this.parseInline(e.header[t].tokens),{header:!0,align:e.align[t]});t+=this.renderer.tablerow(s);let i="";for(let t=0;t<e.rows.length;t++){const n=e.rows[t];s="";for(let t=0;t<n.length;t++)s+=this.renderer.tablecell(this.parseInline(n[t].tokens),{header:!1,align:e.align[t]});i+=this.renderer.tablerow(s)}n+=this.renderer.table(t,i);continue}case"blockquote":{const e=r,t=this.parse(e.tokens);n+=this.renderer.blockquote(t);continue}case"list":{const e=r,t=e.ordered,s=e.start,i=e.loose;let l="";for(let t=0;t<e.items.length;t++){const n=e.items[t],s=n.checked,r=n.task;let o="";if(n.task){const e=this.renderer.checkbox(!!s);i?n.tokens.length>0&&"paragraph"===n.tokens[0].type?(n.tokens[0].text=e+" "+n.tokens[0].text,n.tokens[0].tokens&&n.tokens[0].tokens.length>0&&"text"===n.tokens[0].tokens[0].type&&(n.tokens[0].tokens[0].text=e+" "+n.tokens[0].tokens[0].text)):n.tokens.unshift({type:"text",text:e+" "}):o+=e+" "}o+=this.parse(n.tokens,i),l+=this.renderer.listitem(o,r,!!s)}n+=this.renderer.list(l,t,s);continue}case"html":{const e=r;n+=this.renderer.html(e.text,e.block);continue}case"paragraph":{const e=r;n+=this.renderer.paragraph(this.parseInline(e.tokens));continue}case"text":{let i=r,l=i.tokens?this.parseInline(i.tokens):i.text;for(;s+1<e.length&&"text"===e[s+1].type;)i=e[++s],l+="\n"+(i.tokens?this.parseInline(i.tokens):i.text);n+=t?this.renderer.paragraph(l):l;continue}default:{const e='Token with "'+r.type+'" type was not found.';if(this.options.silent)return console.error(e),"";throw new Error(e)}}}return n}parseInline(e,t){t=t||this.renderer;let n="";for(let s=0;s<e.length;s++){const r=e[s];if(this.options.extensions&&this.options.extensions.renderers&&this.options.extensions.renderers[r.type]){const e=this.options.extensions.renderers[r.type].call({parser:this},r);if(!1!==e||!["escape","html","link","image","strong","em","codespan","br","del","text"].includes(r.type)){n+=e||"";continue}}switch(r.type){case"escape":{const e=r;n+=t.text(e.text);break}case"html":{const e=r;n+=t.html(e.text);break}case"link":{const e=r;n+=t.link(e.href,e.title,this.parseInline(e.tokens,t));break}case"image":{const e=r;n+=t.image(e.href,e.title,e.text);break}case"strong":{const e=r;n+=t.strong(this.parseInline(e.tokens,t));break}case"em":{const e=r;n+=t.em(this.parseInline(e.tokens,t));break}case"codespan":{const e=r;n+=t.codespan(e.text);break}case"br":n+=t.br();break;case"del":{const e=r;n+=t.del(this.parseInline(e.tokens,t));break}case"text":{const e=r;n+=t.text(e.text);break}default:{const e='Token with "'+r.type+'" type was not found.';if(this.options.silent)return console.error(e),"";throw new Error(e)}}}return n}}class T{options;constructor(t){this.options=t||e.defaults}static passThroughHooks=new Set(["preprocess","postprocess"]);preprocess(e){return e}postprocess(e){return e}}class R{defaults={async:!1,breaks:!1,extensions:null,gfm:!0,hooks:null,pedantic:!1,renderer:null,silent:!1,tokenizer:null,walkTokens:null};options=this.setOptions;parse=this.#e(_.lex,z.parse);parseInline=this.#e(_.lexInline,z.parseInline);Parser=z;Renderer=y;TextRenderer=$;Lexer=_;Tokenizer=b;Hooks=T;constructor(...e){this.use(...e)}walkTokens(e,t){let n=[];for(const s of e)switch(n=n.concat(t.call(this,s)),s.type){case"table":{const e=s;for(const s of e.header)n=n.concat(this.walkTokens(s.tokens,t));for(const s of e.rows)for(const e of s)n=n.concat(this.walkTokens(e.tokens,t));break}case"list":{const e=s;n=n.concat(this.walkTokens(e.items,t));break}default:{const e=s;this.defaults.extensions?.childTokens?.[e.type]?this.defaults.extensions.childTokens[e.type].forEach((s=>{n=n.concat(this.walkTokens(e[s],t))})):e.tokens&&(n=n.concat(this.walkTokens(e.tokens,t)))}}return n}use(...e){const t=this.defaults.extensions||{renderers:{},childTokens:{}};return e.forEach((e=>{const n={...e};if(n.async=this.defaults.async||n.async||!1,e.extensions&&(e.extensions.forEach((e=>{if(!e.name)throw new Error("extension name required");if("renderer"in e){const n=t.renderers[e.name];t.renderers[e.name]=n?function(...t){let s=e.renderer.apply(this,t);return!1===s&&(s=n.apply(this,t)),s}:e.renderer}if("tokenizer"in e){if(!e.level||"block"!==e.level&&"inline"!==e.level)throw new Error("extension level must be 'block' or 'inline'");const n=t[e.level];n?n.unshift(e.tokenizer):t[e.level]=[e.tokenizer],e.start&&("block"===e.level?t.startBlock?t.startBlock.push(e.start):t.startBlock=[e.start]:"inline"===e.level&&(t.startInline?t.startInline.push(e.start):t.startInline=[e.start]))}"childTokens"in e&&e.childTokens&&(t.childTokens[e.name]=e.childTokens)})),n.extensions=t),e.renderer){const t=this.defaults.renderer||new y(this.defaults);for(const n in e.renderer){const s=e.renderer[n],r=n,i=t[r];t[r]=(...e)=>{let n=s.apply(t,e);return!1===n&&(n=i.apply(t,e)),n||""}}n.renderer=t}if(e.tokenizer){const t=this.defaults.tokenizer||new b(this.defaults);for(const n in e.tokenizer){const s=e.tokenizer[n],r=n,i=t[r];t[r]=(...e)=>{let n=s.apply(t,e);return!1===n&&(n=i.apply(t,e)),n}}n.tokenizer=t}if(e.hooks){const t=this.defaults.hooks||new T;for(const n in e.hooks){const s=e.hooks[n],r=n,i=t[r];T.passThroughHooks.has(n)?t[r]=e=>{if(this.defaults.async)return Promise.resolve(s.call(t,e)).then((e=>i.call(t,e)));const n=s.call(t,e);return i.call(t,n)}:t[r]=(...e)=>{let n=s.apply(t,e);return!1===n&&(n=i.apply(t,e)),n}}n.hooks=t}if(e.walkTokens){const t=this.defaults.walkTokens,s=e.walkTokens;n.walkTokens=function(e){let n=[];return n.push(s.call(this,e)),t&&(n=n.concat(t.call(this,e))),n}}this.defaults={...this.defaults,...n}})),this}setOptions(e){return this.defaults={...this.defaults,...e},this}lexer(e,t){return _.lex(e,t??this.defaults)}parser(e,t){return z.parse(e,t??this.defaults)}#e(e,t){return(n,s)=>{const r={...s},i={...this.defaults,...r};!0===this.defaults.async&&!1===r.async&&(i.silent||console.warn("marked(): The async option was set to true by an extension. The async: false option sent to parse will be ignored."),i.async=!0);const l=this.#t(!!i.silent,!!i.async);if(null==n)return l(new Error("marked(): input parameter is undefined or null"));if("string"!=typeof n)return l(new Error("marked(): input parameter is of type "+Object.prototype.toString.call(n)+", string expected"));if(i.hooks&&(i.hooks.options=i),i.async)return Promise.resolve(i.hooks?i.hooks.preprocess(n):n).then((t=>e(t,i))).then((e=>i.walkTokens?Promise.all(this.walkTokens(e,i.walkTokens)).then((()=>e)):e)).then((e=>t(e,i))).then((e=>i.hooks?i.hooks.postprocess(e):e)).catch(l);try{i.hooks&&(n=i.hooks.preprocess(n));const s=e(n,i);i.walkTokens&&this.walkTokens(s,i.walkTokens);let r=t(s,i);return i.hooks&&(r=i.hooks.postprocess(r)),r}catch(e){return l(e)}}}#t(e,t){return n=>{if(n.message+="\nPlease report this to https://github.com/markedjs/marked.",e){const e="<p>An error occurred:</p><pre>"+c(n.message+"",!0)+"</pre>";return t?Promise.resolve(e):e}if(t)return Promise.reject(n);throw n}}}const S=new R;function A(e,t){return S.parse(e,t)}A.options=A.setOptions=function(e){return S.setOptions(e),A.defaults=S.defaults,n(A.defaults),A},A.getDefaults=t,A.defaults=e.defaults,A.use=function(...e){return S.use(...e),A.defaults=S.defaults,n(A.defaults),A},A.walkTokens=function(e,t){return S.walkTokens(e,t)},A.parseInline=S.parseInline,A.Parser=z,A.parser=z.parse,A.Renderer=y,A.TextRenderer=$,A.Lexer=_,A.lexer=_.lex,A.Tokenizer=b,A.Hooks=T,A.parse=A;const I=A.options,E=A.setOptions,Z=A.use,q=A.walkTokens,L=A.parseInline,D=A,P=z.parse,v=_.lex;e.Hooks=T,e.Lexer=_,e.Marked=R,e.Parser=z,e.Renderer=y,e.TextRenderer=$,e.Tokenizer=b,e.getDefaults=t,e.lexer=v,e.marked=A,e.options=I,e.parse=D,e.parseInline=L,e.parser=P,e.setOptions=E,e.use=Z,e.walkTokens=q}));
+ </script>
+</body>
+</html>
